@@ -73,7 +73,51 @@ securely_erase_disk() {
   fi
 
   dd if=/dev/urandom of="$disk" bs=4k status=progress
-  log "${GREEN}Disk securely erased successfully.${NC}"
+  log "${GREEN}Disk securely erased successfully.${NC} To use the disk again, format it."
+}
+
+format_disk(){
+    fdisk -l
+    echo -e -n "Enter the disk to format (e.g., ${YELLOW}/dev/sda1${NC}): "
+    read -r disk
+
+    if [ ! -e "$disk" ]; then
+      log "${RED}Error: Disk '$disk' not found.${NC}"
+      return 1
+    fi
+
+    display_disk_info "$disk"
+
+    echo -e "${YELLOW}Choose the format option:"
+    echo -e "1. Format as ext4 filesystem (used for Linux)"
+    echo -e "2. Format as NTFS filesystem (used for Windows)"
+    echo -e "3. Format as FAT32 filesystem (used for USB drives)"
+    echo -e "4. Format as exFAT filesystem (used for USB drives)"
+    read -r format_choice
+
+    case $format_choice in
+      1)
+        mkfs.ext4 "$disk"
+        log "${GREEN}Disk formatted as ext4 filesystem successfully.${NC}"
+        ;;
+      2)
+        mkfs.ntfs "$disk"
+        log "${GREEN}Disk formatted as NTFS filesystem successfully.${NC}"
+        ;;
+      3)
+        mkfs.fat -F32 "$disk"
+        log "${GREEN}Disk formatted as FAT32 filesystem successfully.${NC}"
+        ;;
+      4)
+        mkfs.exfat "$disk"
+        log "${GREEN}Disk formatted as exFAT filesystem successfully.${NC}"
+        ;;
+      *)
+        log "${RED}Invalid option!${NC}"
+        return 1
+        ;;
+    esac
+
 }
 
 PS3='Enter your choice: '
@@ -85,6 +129,9 @@ do
       ;;
     "Securely Erase Disk")
       securely_erase_disk
+      ;;
+    "Format Disk")
+      format_disk
       ;;
     "Exit")
       log "${YELLOW}Exiting the script.${NC}"
