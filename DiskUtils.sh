@@ -1,68 +1,74 @@
 #!/bin/bash
 
+# Define colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
 log() {
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1"
+  echo -e "$(date '+%Y-%m-%d %H:%M:%S') - $1"
 }
 
 # Check for sudo permissions
 if [ "$EUID" -ne 0 ]; then
-  log "Please run this script as root!"
+  log "${RED}Please run this script as root!${NC}"
   exit 1
 fi
 
 display_disk_info() {
   local disk="$1"
-  log "Disk Information for $disk:"
+  log "${YELLOW}Disk Information for $disk:${NC}"
   fdisk -l "$disk"
 }
 
 image_disk() {
   fdisk -l
-  read -rp "Enter the path of the disk to image (e.g., /dev/sda1): " disk
+  read -rp "Enter the path of the disk to image (e.g., ${YELLOW}/dev/sda1${NC}): " disk
 
   if [ ! -e "$disk" ]; then
-    log "Error: Disk '$disk' not found."
+    log "${RED}Error: Disk '$disk' not found.${NC}"
     return 1
   fi
 
   display_disk_info "$disk"
 
-  read -rp "Proceed to image the disk? [y/N] " response
+  read -rp "${YELLOW}Proceed to image the disk? [y/N] ${NC}" response
   if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-    log "Disk imaging aborted."
+    log "${YELLOW}Disk imaging aborted.${NC}"
     return 1
   fi
 
-  read -rp "Enter the path to save the image (e.g., Downloads/disk.img): " path
+  read -rp "Enter the path to save the image (e.g., ${YELLOW}Downloads/disk.img${NC}): " path
 
   if [ ! -d "$(dirname "$path")" ]; then
-    log "Error: Directory '$(dirname "$path")' does not exist."
+    log "${RED}Error: Directory '$(dirname "$path")' does not exist.${NC}"
     return 1
   fi
 
   dd if="$disk" of="$path" bs=4M status=progress
-  log "Disk imaging completed successfully."
+  log "${GREEN}Disk imaging completed successfully.${NC}"
 }
 
 securely_erase_disk() {
-    fdisk -l
-  read -rp "Enter the disk to erase (e.g., /dev/sda1): " disk
+  fdisk -l
+  read -rp "Enter the disk to erase (e.g., ${YELLOW}/dev/sda1${NC}): " disk
 
   if [ ! -e "$disk" ]; then
-    log "Error: Disk '$disk' not found."
+    log "${RED}Error: Disk '$disk' not found.${NC}"
     return 1
   fi
 
   display_disk_info "$disk"
 
-  read -rp "Proceed to erase the disk? [y/N] " response
+  read -rp "${YELLOW}Proceed to erase the disk? [y/N] ${NC}" response
   if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-    log "Disk erasure aborted."
+    log "${YELLOW}Disk erasure aborted.${NC}"
     return 1
   fi
 
   dd if=/dev/urandom of="$disk" bs=4k status=progress
-  log "Disk securely erased successfully."
+  log "${GREEN}Disk securely erased successfully.${NC}"
 }
 
 PS3='Enter your choice: '
@@ -76,11 +82,11 @@ do
       securely_erase_disk
       ;;
     "Exit")
-      log "Exiting the script."
+      log "${YELLOW}Exiting the script.${NC}"
       break
       ;;
     *)
-      log "Invalid option!"
+      log "${RED}Invalid option!${NC}"
       break
       ;;
   esac
