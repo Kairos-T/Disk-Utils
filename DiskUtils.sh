@@ -24,7 +24,8 @@ display_disk_info() {
 
 image_disk() {
   fdisk -l
-  read -rp "Enter the path of the disk to image (e.g., ${YELLOW}/dev/sda1${NC}): " disk
+  echo -e -n "Enter the path of the disk to image (e.g., ${YELLOW}/dev/sda1${NC}): "
+  read -r disk
 
   if [ ! -e "$disk" ]; then
     log "${RED}Error: Disk '$disk' not found.${NC}"
@@ -33,13 +34,15 @@ image_disk() {
 
   display_disk_info "$disk"
 
-  read -rp "${YELLOW}Proceed to image the disk? [y/N] ${NC}" response
+  echo -e -n "${YELLOW}Proceed to image the disk? [y/N] ${NC}"
+  read -r response
   if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
     log "${YELLOW}Disk imaging aborted.${NC}"
     return 1
   fi
 
-  read -rp "Enter the path to save the image (e.g., ${YELLOW}Downloads/disk.img${NC}): " path
+  echo -e -n "Enter the path to save the image (e.g., ${YELLOW}Downloads/disk.img${NC}): "
+  read -r path
 
   if [ ! -d "$(dirname "$path")" ]; then
     log "${RED}Error: Directory '$(dirname "$path")' does not exist.${NC}"
@@ -52,7 +55,8 @@ image_disk() {
 
 securely_erase_disk() {
   fdisk -l
-  read -rp "Enter the disk to erase (e.g., ${YELLOW}/dev/sda1${NC}): " disk
+  echo -e -n "Enter the disk to erase (e.g., ${YELLOW}/dev/sda1${NC}): "
+  read -r disk
 
   if [ ! -e "$disk" ]; then
     log "${RED}Error: Disk '$disk' not found.${NC}"
@@ -61,7 +65,8 @@ securely_erase_disk() {
 
   display_disk_info "$disk"
 
-  read -rp "${YELLOW}Proceed to erase the disk? [y/N] ${NC}" response
+  echo -e -n "${YELLOW}Proceed to erase the disk? [y/N] ${NC}"
+  read -r response
   if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
     log "${YELLOW}Disk erasure aborted.${NC}"
     return 1
