@@ -121,7 +121,7 @@ format_disk(){
 }
 
 PS3='Enter your choice: '
-select choice in "Image Disk" "Securely Erase Disk" "Exit"
+select choice in "Image Disk" "Securely Erase Disk" "Format Disk" "Exit"
 do
   case $choice in
     "Image Disk")
