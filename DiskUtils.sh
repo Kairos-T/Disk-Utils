@@ -75,8 +75,8 @@ securely_erase_disk() {
     return 1
   fi
 
-  if dd if=/dev/urandom of="$disk" bs=4k status=progress; then
-    log "${GREEN}Disk securely erased successfully.${NC} To use the disk again, format it."
+  if dd if=/dev/urandom of="$disk" bs=4k status=progress 2>&1 | tee /tmp/dd_output.log | grep -q "No space left on device"; then
+    log "${GREEN}Disk securely erased successfully.${NC} To use the disk again, format it (Option 3)."
   else
     log "${RED}Disk erasure failed.${NC}"
   fi
@@ -94,11 +94,11 @@ format_disk(){
 
     display_disk_info "$disk"
 
-    echo -e "${YELLOW}Choose the format option:${NC}"
     echo -e "1. Format as ext4 filesystem (used for Linux)"
     echo -e "2. Format as NTFS filesystem (used for Windows)"
     echo -e "3. Format as FAT32 filesystem (used for USB drives)"
     echo -e "4. Format as exFAT filesystem (used for USB drives)"
+    echo -e "${YELLOW}Choose the format option:${NC}"
     read -r format_choice
 
     case $format_choice in
@@ -124,24 +124,29 @@ format_disk(){
 }
 
 PS3='Choose an option (1-4): '
-select choice in "Image Disk" "Securely Erase Disk" "Format Disk" "Exit"
-do
-  case $choice in
-    "Image Disk")
-      image_disk
-      ;;
-    "Securely Erase Disk")
-      securely_erase_disk
-      ;;
-    "Format Disk")
-      format_disk
-      ;;
-    "Exit")
-      log "${YELLOW}Exiting the script.${NC}"
-      break
-      ;;
-    *)
-      log "${RED}Invalid option!${NC}"
-      ;;
-  esac
+while true; do
+  select choice in "Image Disk" "Securely Erase Disk" "Format Disk" "Exit"
+  do
+    case $choice in
+      "Image Disk")
+        image_disk
+        break
+        ;;
+      "Securely Erase Disk")
+        securely_erase_disk
+        break
+        ;;
+      "Format Disk")
+        format_disk
+        break
+        ;;
+      "Exit")
+        log "${YELLOW}Exiting the script.${NC}"
+        exit 0
+        ;;
+      *)
+        log "${RED}Invalid option!${NC}"
+        ;;
+    esac
+  done
 done
