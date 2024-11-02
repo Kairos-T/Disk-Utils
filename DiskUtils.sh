@@ -19,12 +19,12 @@ fi
 display_disk_info() {
   local disk="$1"
   log "${YELLOW}Disk Information for $disk:${NC}"
-  fdisk -l "$disk"
+  lsblk "$disk"
 }
 
 image_disk() {
-  fdisk -l
-  echo -e -n "Enter the path of the disk to image (e.g., ${YELLOW}/dev/sda1${NC}): "
+  lsblk
+  echo -e -n "Enter the path of the disk to image (e.g., ${YELLOW}/dev/sda${NC}): "
   read -r disk
 
   if [ ! -e "$disk" ]; then
@@ -41,7 +41,7 @@ image_disk() {
     return 1
   fi
 
-  echo -e -n "Enter the path to save the image (e.g., ${YELLOW}Downloads/disk.img${NC}): "
+  echo -e -n "Enter the path to save the image (e.g., ${YELLOW}/Downloads/disk.img${NC}): "
   read -r path
 
   if [ ! -d "$(dirname "$path")" ]; then
@@ -49,13 +49,16 @@ image_disk() {
     return 1
   fi
 
-  dd if="$disk" of="$path" bs=4M status=progress
-  log "${GREEN}Disk imaging completed successfully.${NC}"
+  if dd if="$disk" of="$path" bs=4M status=progress; then
+    log "${GREEN}Disk imaging completed successfully.${NC}"
+  else
+    log "${RED}Disk imaging failed.${NC}"
+  fi
 }
 
 securely_erase_disk() {
-  fdisk -l
-  echo -e -n "Enter the disk to erase (e.g., ${YELLOW}/dev/sda1${NC}): "
+  lsblk
+  echo -e -n "Enter the disk to erase (e.g., ${YELLOW}/dev/sda${NC}): "
   read -r disk
 
   if [ ! -e "$disk" ]; then
@@ -72,13 +75,16 @@ securely_erase_disk() {
     return 1
   fi
 
-  dd if=/dev/urandom of="$disk" bs=4k status=progress
-  log "${GREEN}Disk securely erased successfully.${NC} To use the disk again, format it."
+  if dd if=/dev/urandom of="$disk" bs=4k status=progress; then
+    log "${GREEN}Disk securely erased successfully.${NC} To use the disk again, format it."
+  else
+    log "${RED}Disk erasure failed.${NC}"
+  fi
 }
 
 format_disk(){
-    fdisk -l
-    echo -e -n "Enter the disk to format (e.g., ${YELLOW}/dev/sda1${NC}): "
+    lsblk
+    echo -e -n "Enter the disk to format (e.g., ${YELLOW}/dev/sda${NC}): "
     read -r disk
 
     if [ ! -e "$disk" ]; then
@@ -88,7 +94,7 @@ format_disk(){
 
     display_disk_info "$disk"
 
-    echo -e "${YELLOW}Choose the format option:"
+    echo -e "${YELLOW}Choose the format option:${NC}"
     echo -e "1. Format as ext4 filesystem (used for Linux)"
     echo -e "2. Format as NTFS filesystem (used for Windows)"
     echo -e "3. Format as FAT32 filesystem (used for USB drives)"
@@ -101,26 +107,23 @@ format_disk(){
         log "${GREEN}Disk formatted as ext4 filesystem successfully.${NC}"
         ;;
       2)
-        mkfs.ntfs "$disk"
-        log "${GREEN}Disk formatted as NTFS filesystem successfully.${NC}"
+        mkfs.ntfs "$disk" || log "${RED}Failed to format disk as NTFS. Ensure ntfs-3g is installed.${NC}"
         ;;
       3)
         mkfs.fat -F32 "$disk"
         log "${GREEN}Disk formatted as FAT32 filesystem successfully.${NC}"
         ;;
       4)
-        mkfs.exfat "$disk"
-        log "${GREEN}Disk formatted as exFAT filesystem successfully.${NC}"
+        mkfs.exfat "$disk" || log "${RED}Failed to format disk as exFAT. Ensure exfat-utils is installed.${NC}"
         ;;
       *)
         log "${RED}Invalid option!${NC}"
         return 1
         ;;
     esac
-
 }
 
-PS3='Enter your choice: '
+PS3='Choose an option (1-4): '
 select choice in "Image Disk" "Securely Erase Disk" "Format Disk" "Exit"
 do
   case $choice in
@@ -139,7 +142,6 @@ do
       ;;
     *)
       log "${RED}Invalid option!${NC}"
-      break
       ;;
   esac
 done
