@@ -98,7 +98,7 @@ format_disk(){
     echo -e "2. Format as NTFS filesystem (used for Windows)"
     echo -e "3. Format as FAT32 filesystem (used for USB drives)"
     echo -e "4. Format as exFAT filesystem (used for USB drives)"
-    echo -e "${YELLOW}Choose the format option:${NC}"
+    echo -e -n "${YELLOW}Choose the format option:${NC} "
     read -r format_choice
 
     case $format_choice in
