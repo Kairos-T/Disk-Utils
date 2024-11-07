@@ -67,6 +67,11 @@ securely_erase_disk() {
   fi
 
   display_disk_info "$disk"
+  echo -e -n "Enter the number of passes for disk erasure (default is 1): "
+  read -r response
+
+  # Default to 1 if no response is given
+  passes=${response:-1}
 
   echo -e -n "${YELLOW}Proceed to erase the disk? [y/N] ${NC}"
   read -r response
@@ -75,12 +80,18 @@ securely_erase_disk() {
     return 1
   fi
 
-  if dd if=/dev/urandom of="$disk" bs=4k status=progress 2>&1 | tee /tmp/dd_output.log | grep -q "No space left on device"; then
-    log "${GREEN}Disk securely erased successfully.${NC} To use the disk again, format it (Option 3)."
-  else
-    log "${RED}Disk erasure failed.${NC}"
-  fi
+  for ((i = 1; i <= passes; i++)); do
+    if dd if=/dev/urandom of="$disk" bs=4k status=progress 2>&1 | tee /tmp/dd_output.log | grep -q "No space left on device"; then
+      log "${GREEN}Pass $i/$passes completed successfully.${NC}"
+    else
+      log "${RED}Pass $i: Disk erasure failed.${NC}"
+      return 1
+    fi
+  done
+
+  log "${GREEN}Disk erasure completed successfully. If you want to continue using the disk, format the disk (option 3). ${NC}"
 }
+
 
 format_disk(){
     lsblk
