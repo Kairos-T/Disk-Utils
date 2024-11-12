@@ -103,7 +103,7 @@ image_device() {
 }
 
 securely_erase_device() {
-  lsblk -o NAME,SIZE,TYPE,MOUNTPOINT
+  lsblk -o NAME,SIZE,TYPE,MOUNTPOINT | grep --color=never -E 'disk|part'
   echo -e -n "Enter the device to erase (e.g., ${YELLOW}/dev/sda or /dev/sda1${NC}): "
   read -r device
 
