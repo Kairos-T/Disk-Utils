@@ -24,7 +24,7 @@ command_exists() {
 # Check for required dependencies
 check_dependencies() {
   local dependencies=("lsblk" "dd" "mkfs" "grep" "umount")
-  local optional_dependencies=("exfatprogs" "ntfs-3g")
+  local optional_dependencies=("mkfs.exfat" "ntfs-3g")
 
   for cmd in "${dependencies[@]}"; do
     if ! command_exists "$cmd"; then
@@ -76,7 +76,7 @@ display_disk_info() {
 }
 
 image_disk() {
-  lsblk -o NAME,SIZE,TYPE,MOUNTPOINT
+  lsblk -o NAME,SIZE,TYPE,MOUNTPOINT | grep --color=never -E 'disk|part'
   echo -e -n "Enter the path of the disk to image (e.g., ${YELLOW}/dev/sda or /dev/sda1${NC}): "
   read -r disk
 
@@ -93,15 +93,61 @@ image_disk() {
     return 1
   fi
 
-  echo -e -n "Enter the path to save the image (e.g., ${YELLOW}/Downloads/disk.img${NC}): "
-  read -r path
+  while true; do
+    echo -e -n "Enter the path to save the image (e.g., ${YELLOW}/home/username/Downloads/${NC}): "
+    read -r path
+  
+    if [[ "$path" != /home/* ]]; then
+      echo -e -n "${YELLOW}Warning: The path you entered is not in the /home directory. Are you sure you want to proceed? [y/N] ${NC}"
+      read -r response
+      if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+        log "${YELLOW}Please enter a valid path again.${NC}"
+        continue  # Prompt for the path again
+      fi
+    fi
+    break
+  done
 
-  if [ ! -d "$(dirname "$path")" ]; then
-    log "${RED}Error: Directory '$(dirname "$path")' does not exist.${NC}"
-    return 1
+  if [ ! -d "$path" ] 2>/dev/null; then
+    echo -e -n "Directory "$path" does not exist. Create it? [y/N]"
+    read -r response
+    if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+      log "${YELLOW}Disk imaging aborted.${NC}"
+      return 1
+    fi
+
+    log "${YELLOW}Creating directory "$path"...${NC}"
+    mkdir -p "$path"
+
+    if [ $? -ne 0 ]; then
+      log "${RED}Failed to create directory "$path".${NC}"
+      return 1
+    fi
   fi
+  while true; do
+    echo -e -n "Enter filename for the disk image (default is disk.img): "
+    read -r filename
 
-  if dd if="$disk" of="$path" bs=4M status=progress; then
+    if [[ -z "$filename" ]]; then
+      filename="disk.img"
+    fi
+
+    if [[ "$filename" != *.img ]]; then
+      filename="${filename}.img"
+    fi
+
+    if [ -f "$path/$filename" ] 2>/dev/null; then
+      echo -e -n "${YELLOW}Warning: The file $path already exists. Do you want to overwrite it? [y/N] ${NC}"
+      read -r response
+      if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+        log "${YELLOW}Please enter a different filename.${NC}"
+        continue 
+      fi
+    fi
+    break
+  done
+  
+  if dd if="$disk" of="$path/$filename" bs=4M status=progress; then
     log "${GREEN}Disk imaging completed successfully.${NC}"
   else
     log "${RED}Disk imaging failed.${NC}"
@@ -132,7 +178,7 @@ securely_erase_disk() {
   fi
 
   for ((i = 1; i <= passes; i++)); do
-    if dd if=/dev/urandom of="$disk" bs=4k status=progress 2>&1 | tee /tmp/dd_output.log | grep -q "No space left on disk"; then
+    if dd if=/dev/urandom of="$disk" bs=4k status=progress 2>&1 | tee /tmp/dd_output.log | grep -q "No space left"; then
       log "${GREEN}Pass $i/$passes completed successfully.${NC}"
     else
       log "${RED}Pass $i: Disk erasure failed.${NC}"
@@ -157,7 +203,7 @@ format_disk() {
     echo -e "1. Format as ext4 filesystem (used for Linux)"
     echo -e "2. Format as NTFS filesystem (used for Windows)"
     echo -e "3. Format as FAT32 filesystem (used for USB drives)"
-    echo -e "4. Format as  filesystem (used for USB drives)"
+    echo -e "4. Format as exFAT filesystem (used for USB drives)"
     echo -e -n "${YELLOW}Choose the format option:${NC} "
     read -r format_choice
 
