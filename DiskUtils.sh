@@ -10,38 +10,84 @@ log() {
   echo -e "$(date '+%Y-%m-%d %H:%M:%S') - $1"
 }
 
-# Check for sudo permissions
-if [ "$EUID" -ne 0 ]; then
-  log "${RED}Please run this script as root!${NC}"
-  exit 1
-fi
-
-display_disk_info() {
-  local disk="$1"
-  log "${YELLOW}Disk Information for $disk:${NC}"
-  lsblk "$disk"
+# Check if a command exists
+command_exists() {
+  command -v "$1" >/dev/null 2>&1
 }
 
-image_disk() {
-  lsblk
-  echo -e -n "Enter the path of the disk to image (e.g., ${YELLOW}/dev/sda${NC}): "
-  read -r disk
+# Check for required dependencies
+check_dependencies() {
+  local dependencies=("lsblk" "dd" "mkfs" "grep" "umount")
+  local optional_dependencies=("exfat-utils" "ntfs-3g")
 
-  if [ ! -e "$disk" ]; then
-    log "${RED}Error: Disk '$disk' not found.${NC}"
+  for cmd in "${dependencies[@]}"; do
+    if ! command_exists "$cmd"; then
+      log "${RED}Error: Required dependency '$cmd' is missing. Please install it and try again.${NC}"
+      exit 1
+    fi
+  done
+
+  for cmd in "${optional_dependencies[@]}"; do
+    if ! command_exists "$cmd"; then
+      log "${YELLOW}Warning: Optional dependency '$cmd' is missing. Some features may not work (e.g., exFAT/NTFS formatting).${NC}"
+    fi
+  done
+}
+
+# Disk or partition validation
+is_valid_device() {
+  local device="$1"
+
+  if [ ! -e "$device" ]; then
+    log "${RED}Error: Device '$device' not found.${NC}"
     return 1
   fi
 
-  display_disk_info "$disk"
+  if mount | grep -q "$device"; then
+    log "${YELLOW}Device '$device' is currently mounted. It must be unmounted.${NC}"
+    echo -e -n "${YELLOW}Would you like to unmount it? [y/N] ${NC}"
+    read -r response
+    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+      if umount "$device"; then
+        log "${GREEN}Device '$device' unmounted successfully.${NC}"
+      else
+        log "${RED}Failed to unmount device '$device'. Please unmount it manually.${NC}"
+        return 1
+      fi
+    else
+      log "${YELLOW}Operation aborted. Device must be unmounted before proceeding.${NC}"
+      return 1
+    fi
+  fi
 
-  echo -e -n "${YELLOW}Proceed to image the disk? [y/N] ${NC}"
+  return 0
+}
+
+display_disk_info() {
+  local device="$1"
+  log "${YELLOW}Disk/Partition Information for $device:${NC}"
+  lsblk "$device"
+}
+
+image_device() {
+  lsblk -o NAME,SIZE,TYPE,MOUNTPOINT
+  echo -e -n "Enter the path of the device to image (e.g., ${YELLOW}/dev/sda or /dev/sda1${NC}): "
+  read -r device
+
+  if ! is_valid_device "$device"; then
+    return 1
+  fi
+
+  display_disk_info "$device"
+
+  echo -e -n "${YELLOW}Proceed to image the device? [y/N] ${NC}"
   read -r response
   if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-    log "${YELLOW}Disk imaging aborted.${NC}"
+    log "${YELLOW}Device imaging aborted.${NC}"
     return 1
   fi
 
-  echo -e -n "Enter the path to save the image (e.g., ${YELLOW}/Downloads/disk.img${NC}): "
+  echo -e -n "Enter the path to save the image (e.g., ${YELLOW}/Downloads/device.img${NC}): "
   read -r path
 
   if [ ! -d "$(dirname "$path")" ]; then
@@ -49,61 +95,57 @@ image_disk() {
     return 1
   fi
 
-  if dd if="$disk" of="$path" bs=4M status=progress; then
-    log "${GREEN}Disk imaging completed successfully.${NC}"
+  if dd if="$device" of="$path" status=progress; then
+    log "${GREEN}Device imaging completed successfully.${NC}"
   else
-    log "${RED}Disk imaging failed.${NC}"
+    log "${RED}Device imaging failed.${NC}"
   fi
 }
 
-securely_erase_disk() {
-  lsblk
-  echo -e -n "Enter the disk to erase (e.g., ${YELLOW}/dev/sda${NC}): "
-  read -r disk
+securely_erase_device() {
+  lsblk -o NAME,SIZE,TYPE,MOUNTPOINT
+  echo -e -n "Enter the device to erase (e.g., ${YELLOW}/dev/sda or /dev/sda1${NC}): "
+  read -r device
 
-  if [ ! -e "$disk" ]; then
-    log "${RED}Error: Disk '$disk' not found.${NC}"
+  if ! is_valid_device "$device"; then
     return 1
   fi
 
-  display_disk_info "$disk"
-  echo -e -n "Enter the number of passes for disk erasure (default is 1): "
+  display_disk_info "$device"
+  echo -e -n "Enter the number of passes for device erasure (default is 1): "
   read -r response
 
-  # Default to 1 if no response is given
   passes=${response:-1}
 
-  echo -e -n "${YELLOW}Proceed to erase the disk? [y/N] ${NC}"
+  echo -e -n "${YELLOW}Proceed to erase the device? [y/N] ${NC}"
   read -r response
   if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-    log "${YELLOW}Disk erasure aborted.${NC}"
+    log "${YELLOW}Device erasure aborted.${NC}"
     return 1
   fi
 
   for ((i = 1; i <= passes; i++)); do
-    if dd if=/dev/urandom of="$disk" bs=4k status=progress 2>&1 | tee /tmp/dd_output.log | grep -q "No space left on device"; then
+    if dd if=/dev/urandom of="$device" status=progress 2>&1 | tee /tmp/dd_output.log | grep -q "No space left on device"; then
       log "${GREEN}Pass $i/$passes completed successfully.${NC}"
     else
-      log "${RED}Pass $i: Disk erasure failed.${NC}"
+      log "${RED}Pass $i: Device erasure failed.${NC}"
       return 1
     fi
   done
 
-  log "${GREEN}Disk erasure completed successfully. If you want to continue using the disk, format the disk (option 3). ${NC}"
+  log "${GREEN}Device erasure completed successfully. If you want to continue using the device, format it (option 3).${NC}"
 }
 
+format_device() {
+    lsblk -o NAME,SIZE,TYPE,MOUNTPOINT
+    echo -e -n "Enter the device to format (e.g., ${YELLOW}/dev/sda or /dev/sda1${NC}): "
+    read -r device
 
-format_disk(){
-    lsblk
-    echo -e -n "Enter the disk to format (e.g., ${YELLOW}/dev/sda${NC}): "
-    read -r disk
-
-    if [ ! -e "$disk" ]; then
-      log "${RED}Error: Disk '$disk' not found.${NC}"
+    if ! is_valid_device "$device"; then
       return 1
     fi
 
-    display_disk_info "$disk"
+    display_disk_info "$device"
 
     echo -e "1. Format as ext4 filesystem (used for Linux)"
     echo -e "2. Format as NTFS filesystem (used for Windows)"
@@ -114,18 +156,18 @@ format_disk(){
 
     case $format_choice in
       1)
-        mkfs.ext4 "$disk"
-        log "${GREEN}Disk formatted as ext4 filesystem successfully.${NC}"
+        mkfs.ext4 "$device"
+        log "${GREEN}Device formatted as ext4 filesystem successfully.${NC}"
         ;;
       2)
-        mkfs.ntfs "$disk" || log "${RED}Failed to format disk as NTFS. Ensure ntfs-3g is installed.${NC}"
+        mkfs.ntfs "$device" || log "${RED}Failed to format device as NTFS. Ensure ntfs-3g is installed.${NC}"
         ;;
       3)
-        mkfs.fat -F32 "$disk"
-        log "${GREEN}Disk formatted as FAT32 filesystem successfully.${NC}"
+        mkfs.fat -F32 "$device"
+        log "${GREEN}Device formatted as FAT32 filesystem successfully.${NC}"
         ;;
       4)
-        mkfs.exfat "$disk" || log "${RED}Failed to format disk as exFAT. Ensure exfat-utils is installed.${NC}"
+        mkfs.exfat "$device" || log "${RED}Failed to format device as exFAT. Ensure exfat-utils is installed.${NC}"
         ;;
       *)
         log "${RED}Invalid option!${NC}"
@@ -134,21 +176,23 @@ format_disk(){
     esac
 }
 
+# Run dependency check at the beginning
+check_dependencies
+
 PS3='Choose an option (1-4): '
 while true; do
-  select choice in "Image Disk" "Securely Erase Disk" "Format Disk" "Exit"
-  do
+  select choice in "Image Device" "Securely Erase Device" "Format Device" "Exit"; do
     case $choice in
-      "Image Disk")
-        image_disk
+      "Image Device")
+        image_device
         break
         ;;
-      "Securely Erase Disk")
-        securely_erase_disk
+      "Securely Erase Device")
+        securely_erase_device
         break
         ;;
-      "Format Disk")
-        format_disk
+      "Format Device")
+        format_device
         break
         ;;
       "Exit")
