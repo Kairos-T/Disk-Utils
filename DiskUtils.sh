@@ -24,7 +24,7 @@ command_exists() {
 # Check for required dependencies
 check_dependencies() {
   local dependencies=("lsblk" "dd" "mkfs" "grep" "umount")
-  local optional_dependencies=("exfat-utils" "ntfs-3g")
+  local optional_dependencies=("exfatprogs" "ntfs-3g")
 
   for cmd in "${dependencies[@]}"; do
     if ! command_exists "$cmd"; then
@@ -35,7 +35,7 @@ check_dependencies() {
 
   for cmd in "${optional_dependencies[@]}"; do
     if ! command_exists "$cmd"; then
-      log "${YELLOW}Warning: Optional dependency '$cmd' is missing. Some features may not work (e.g., exFAT/NTFS formatting).${NC}"
+      log "${YELLOW}Warning: Optional dependency '$cmd' is missing. Some features may not work (e.g., /NTFS formatting).${NC}"
     fi
   done
 }
@@ -157,7 +157,7 @@ format_disk() {
     echo -e "1. Format as ext4 filesystem (used for Linux)"
     echo -e "2. Format as NTFS filesystem (used for Windows)"
     echo -e "3. Format as FAT32 filesystem (used for USB drives)"
-    echo -e "4. Format as exFAT filesystem (used for USB drives)"
+    echo -e "4. Format as  filesystem (used for USB drives)"
     echo -e -n "${YELLOW}Choose the format option:${NC} "
     read -r format_choice
 
@@ -174,7 +174,7 @@ format_disk() {
         log "${GREEN}Disk formatted as FAT32 filesystem successfully.${NC}"
         ;;
       4)
-        mkfs.exfat "$disk" || log "${RED}Failed to format disk as exFAT. Ensure exfat-utils is installed.${NC}"
+        mkfs.exfat "$disk" || log "${RED}Failed to format disk as exFAT. Ensure exfatprogs is installed.${NC}"
         ;;
       *)
         log "${RED}Invalid option!${NC}"
