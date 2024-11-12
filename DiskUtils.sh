@@ -10,6 +10,12 @@ log() {
   echo -e "$(date '+%Y-%m-%d %H:%M:%S') - $1"
 }
 
+# Check for sudo permissions
+if [ "$EUID" -ne 0 ]; then
+  log "${RED}Please run this script as root!${NC}"
+  exit 1
+fi
+
 # Check if a command exists
 command_exists() {
   command -v "$1" >/dev/null 2>&1
